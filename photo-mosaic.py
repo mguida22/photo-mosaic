@@ -17,6 +17,9 @@ R, G, B = 0, 1, 2
 TMP_DIR_PATH = None
 TILE_IMAGE_DIR_PATH = None
 
+def setup():
+    os.makedirs(TMP_DIR_PATH, exist_ok=True)
+
 
 def cleanup():
     shutil.rmtree(TMP_DIR_PATH)
@@ -43,16 +46,17 @@ def create_sized_img(filename, x_dim, y_dim, is_tile=True):
         img = Image.open(get_tile_path(filename))
     else:
         img = Image.open(filename)
+
     img = img.resize((x_dim, y_dim), Image.BILINEAR)
     new_filename = get_tmp_path(filename)
     img.save(new_filename)
+
+    return new_filename
 
 
 def prep_tile_images(dim):
     images = {}
 
-    # create a temp dir for our images
-    os.makedirs(TMP_DIR_PATH, exist_ok=True)
     for filename in glob.glob(get_tile_path("*.png")):
         c = ColorThief(filename).get_color()
         dominate_color = rgb_to_lab(c)
@@ -86,7 +90,6 @@ def avg_color(img, box):
 
 
 def best_match(color, imgs):
-    # can't be higher than 255 per band, 3 bands --> 765
     min_diff = None
     match = None
     diff = 0
@@ -104,7 +107,7 @@ def best_match(color, imgs):
     return match
 
 
-def replace_img(img, imgs_to_replace, outfile_name):
+def replace_imgs(img, imgs_to_replace, outfile_name):
     img = Image.open(img)
 
     images = {}
@@ -152,11 +155,17 @@ if __name__ == "__main__":
     TILE_IMAGE_DIR_PATH = args.tile_image_dir
     TMP_DIR_PATH = args.tmp_dir
 
+    setup()
+
     img = misc.imread(args.infile)
 
     img_dim_y = len(img)
     img_dim_x = len(img[1])
     box_dim = int(min(img_dim_x, img_dim_y) / args.boxes)
+
+    x_cropped = img_dim_x - (img_dim_x % box_dim)
+    y_cropped = img_dim_y - (img_dim_y % box_dim)
+    r_img = create_sized_img(args.infile, x_cropped, y_cropped, is_tile=False)
 
     tile_images = prep_tile_images(box_dim)
 
@@ -167,7 +176,8 @@ if __name__ == "__main__":
     end_x, end_y, box, match = None, None, None, None
     for j in range(0, img_dim_x, box_dim):
         for k in range(0, img_dim_y, box_dim):
-            # make sure we don't exceed the boundaries
+            # make sure we don't exceed the boundaries, even though img is now
+            # resized to fit.
             end_x = j + box_dim if j + box_dim < img_dim_x else img_dim_x
             end_y = k + box_dim if k + box_dim < img_dim_y else img_dim_y
             box = (j, k, end_x, end_y)
@@ -175,10 +185,6 @@ if __name__ == "__main__":
             match = process_square(img, box, tile_images)
             imgs_to_replace.append((box, match))
 
-    x_cropped = img_dim_x - (img_dim_x % box_dim)
-    y_cropped = img_dim_y - (img_dim_y % box_dim)
-    create_sized_img(args.infile, x_cropped, y_cropped, is_tile=False)
-
-    replace_img(get_tmp_path(args.infile), imgs_to_replace, args.outfile)
+    replace_imgs(r_img, imgs_to_replace, args.outfile)
 
     cleanup()
