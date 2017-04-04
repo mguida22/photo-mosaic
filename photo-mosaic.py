@@ -1,3 +1,4 @@
+import argparse
 import glob
 import math
 import os
@@ -10,8 +11,8 @@ from scipy import misc
 
 
 R, G, B = 0, 1, 2
-TMP_DIR_PATH = "tmp-photo-mosaic-imgs"
-TILE_IMAGE_DIR_PATH = "tile-images"
+TMP_DIR_PATH = None
+TILE_IMAGE_DIR_PATH = None
 
 
 def cleanup():
@@ -114,8 +115,8 @@ def replace_img(img, imgs_to_replace, outfile_name):
             # It needs to generate new images to fit the required width here
             # and attempt to replace again
         except Exception as err:
-            print("Couldn't fit image tile to box")
-            print("  ERROR: {}\n  BOX: {}".format(err, box))
+            print("ERROR: Couldn't fit image tile to box")
+            print("  ERR_MSG: {}\n  BOX: {}".format(err, box))
 
     img.save(outfile_name)
 
@@ -127,19 +128,30 @@ def process_square(img, box, tile_images):
     return match
 
 if __name__ == "__main__":
-    if len(sys.argv) < 4:
-        print("Usage: photo-mosaic.py <input file> <output file> <number of boxes>")
-        sys.exit()
+    parser = argparse.ArgumentParser(
+        description="Create photo-mosaics from the command line")
 
-    infile_name = sys.argv[1]
-    outfile_name = sys.argv[2]
-    num_boxes = int(sys.argv[3])
+    parser.add_argument("infile", type=str,
+                        help="Location of image to create a photo-mosaic from")
+    parser.add_argument("outfile", type=str, default="out.png",
+                        help="Location to save photo-mosaic to")
+    parser.add_argument("--boxes", required=True, type=int,
+                        help="Number of boxes to use for pixelating image")
+    parser.add_argument("--tile-image-dir", default="tile-images", type=str,
+                        help="Directory to pull tile images from (will only use .png files)")
+    parser.add_argument("--tmp-dir", default="tmp-photo-mosaic-imgs",
+                        type=str, help="Temporary directory path to use")
 
-    img = misc.imread(infile_name)
+    args = parser.parse_args()
+
+    TILE_IMAGE_DIR_PATH = args.tile_image_dir
+    TMP_DIR_PATH = args.tmp_dir
+
+    img = misc.imread(args.infile)
 
     img_dim_y = len(img)
     img_dim_x = len(img[1])
-    box_dim = int(min(img_dim_x, img_dim_y) / num_boxes)
+    box_dim = int(min(img_dim_x, img_dim_y) / args.boxes)
 
     tile_images = prep_tile_images(box_dim)
 
@@ -158,6 +170,6 @@ if __name__ == "__main__":
             match = process_square(img, box, tile_images)
             imgs_to_replace.append((box, match))
 
-    replace_img(infile_name, imgs_to_replace, outfile_name)
+    replace_img(args.infile, imgs_to_replace, args.outfile)
 
     cleanup()
