@@ -5,6 +5,9 @@ import os
 import shutil
 import sys
 
+from colormath.color_objects import sRGBColor, LabColor
+from colormath.color_conversions import convert_color
+from colormath.color_diff import delta_e_cie2000
 from colorthief import ColorThief
 from PIL import Image
 from scipy import misc
@@ -17,6 +20,10 @@ TILE_IMAGE_DIR_PATH = None
 
 def cleanup():
     shutil.rmtree(TMP_DIR_PATH)
+
+
+def rgb_to_lab(c):
+    return convert_color(sRGBColor(c[R], c[G], c[B]), LabColor)
 
 
 def get_image_name(full_path):
@@ -44,7 +51,8 @@ def prep_tile_images(dim):
     # create a temp dir for our images
     os.makedirs(TMP_DIR_PATH, exist_ok=True)
     for filename in glob.glob(get_tile_path("*.png")):
-        dominate_color = ColorThief(filename).get_color()
+        c = ColorThief(filename).get_color()
+        dominate_color = rgb_to_lab(c)
 
         image_filename = get_image_name(filename)
         create_sized_img(image_filename, dim, dim)
@@ -65,31 +73,28 @@ def avg_color(img, box):
             colors[B] = colors[B] + img[k][j][B]
             count += 1
 
-    return (
+    c = (
         int(colors[R] / count),
         int(colors[G] / count),
         int(colors[B] / count),
     )
 
+    return rgb_to_lab(c)
+
 
 def best_match(color, imgs):
-    # TODO: this needs to be a better diffing algo. It really should focus on
-    # each band in the image. Ex. 20 off on red, green and blue is not that bad,
-    # but 60 off on one band and perfect on the others is definitely
-    # noticeable.
-
     # can't be higher than 255 per band, 3 bands --> 765
-    min_diff = 765
+    min_diff = None
     match = None
     diff = 0
     for img in imgs:
         tile_image = imgs[img]
 
-        diff = (math.fabs(tile_image[R] - color[R])
-                + math.fabs(tile_image[G] - color[G])
-                + math.fabs(tile_image[B] - color[B]))
+        # Using CIEDE2000 as the diffing algo to approx. human perception
+        # https://en.wikipedia.org/wiki/Color_difference#CIEDE2000
+        diff = delta_e_cie2000(tile_image, color)
 
-        if diff < min_diff:
+        if match == None or diff < min_diff:
             match = img
             min_diff = diff
 
