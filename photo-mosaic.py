@@ -38,8 +38,11 @@ def get_tmp_path(image_name):
     return os.path.join(TMP_DIR_PATH, image_name)
 
 
-def create_sized_img(filename, x_dim, y_dim):
-    img = Image.open(get_tile_path(filename))
+def create_sized_img(filename, x_dim, y_dim, is_tile=True):
+    if is_tile:
+        img = Image.open(get_tile_path(filename))
+    else:
+        img = Image.open(filename)
     img = img.resize((x_dim, y_dim), Image.BILINEAR)
     new_filename = get_tmp_path(filename)
     img.save(new_filename)
@@ -111,19 +114,16 @@ def replace_img(img, imgs_to_replace, outfile_name):
         if new_img not in images:
             images[new_img] = Image.open(os.path.join(TMP_DIR_PATH, new_img))
 
-        try:
-            img.paste(images[new_img], box)
-        # except ValueError:
-            # def create_sized_img(filename, x_dim, y_dim):
-            #
-            # TODO: this is fucked - fix it.
-            # It needs to generate new images to fit the required width here
-            # and attempt to replace again
-        except Exception as err:
-            print("ERROR: Couldn't fit image tile to box")
-            print("  ERR_MSG: {}\n  BOX: {}".format(err, box))
+        x1, y1, x2, y2 = box
+        if x2 - x1 == box_dim and y2 - y1 == box_dim:
+            try:
+                img.paste(images[new_img], box)
+            except Exception as err:
+                print("ERROR: Couldn't fit image tile to box")
+                print("  ERR_MSG: {}\n  BOX: {}".format(err, box))
 
     img.save(outfile_name)
+    print("Image saved to {}".format(args.outfile))
 
 
 def process_square(img, box, tile_images):
@@ -175,6 +175,10 @@ if __name__ == "__main__":
             match = process_square(img, box, tile_images)
             imgs_to_replace.append((box, match))
 
-    replace_img(args.infile, imgs_to_replace, args.outfile)
+    x_cropped = img_dim_x - (img_dim_x % box_dim)
+    y_cropped = img_dim_y - (img_dim_y % box_dim)
+    create_sized_img(args.infile, x_cropped, y_cropped, is_tile=False)
+
+    replace_img(get_tmp_path(args.infile), imgs_to_replace, args.outfile)
 
     cleanup()
