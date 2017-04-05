@@ -48,7 +48,7 @@ def create_sized_img(filename, x_dim, y_dim, is_tile=True):
         img = Image.open(filename)
 
     img = img.resize((x_dim, y_dim), Image.BILINEAR)
-    new_filename = get_tmp_path(filename)
+    new_filename = get_tmp_path(get_image_name(filename))
     img.save(new_filename)
 
     return new_filename
@@ -145,7 +145,7 @@ if __name__ == "__main__":
                         help="Location to save photo-mosaic to")
     parser.add_argument("--boxes", required=True, type=int,
                         help="Number of boxes to use for pixelating image")
-    parser.add_argument("--tile-image-dir", default="tile-images", type=str,
+    parser.add_argument("--tile-image-dir", default="example/tile-images", type=str,
                         help="Directory to pull tile images from (will only use .png files)")
     parser.add_argument("--tmp-dir", default="tmp-photo-mosaic-imgs",
                         type=str, help="Temporary directory path to use")
